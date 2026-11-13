@@ -1,0 +1,54 @@
+name: Gatto Giudice - Test reale backend V30
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/test-backend-v30.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Verifica sei giudici, privacy, pagamenti disabilitati
+        env:
+          BASE: https://gatto-giudice-ai.eyjyssj.workers.dev
+        run: |
+          node <<'NODE'
+          const assert=require('node:assert/strict');
+          const base=process.env.BASE;
+          (async()=>{
+            const privacy=await fetch(base+'/privacy');
+            assert.equal(privacy.status,200,'Privacy non funzionante');
+            assert.match(await privacy.text(),/Informativa sulla privacy di Gatto Giudice/);
+            const billing=await fetch(base+'/billing-status');
+            assert.equal(billing.status,200,'Endpoint billing assente');
+            const data=await billing.json();
+            assert.equal(data.ready,false,'ATTENZIONE: transazioni attive senza test');
+            console.log('Privacy 200. Billing 200, acquisti bloccati in sicurezza.');
+            const response=await fetch(base+'/verify-play',{
+              method:'POST',headers:{Origin:'http://localhost','Content-Type':'application/json'},
+              body:JSON.stringify({id:'giudice_severo_premium',transaction:{type:'android-playstore',purchaseToken:'test-fake-token-not-real'}})
+            });
+            assert.equal(response.status,503,'Validator acquisti di prova non deve essere attivo');
+            console.log('Google Play validator chiuso correttamente.');
+            const cats=['dolce','severo','ironico','corrotto','pigro','supremo'];
+            for(let i=0;i<cats.length;i++){
+              const cat=cats[i],device='verify-gatto-20261113-'+cat;
+              const r=await fetch(base+'/giudica',{
+                method:'POST',
+                headers:{Origin:'http://localhost','Content-Type':'application/json'},
+                body:JSON.stringify({decisione:'Sto pensando di fare una passeggiata domani.',carattere:cat,dispositivo:device,lingua:'it'}),
+                signal:AbortSignal.timeout(45000)
+              });
+              const body=await r.text();
+              console.log(cat+': HTTP '+r.status+' / '+body.slice(0,250));
+              assert.equal(r.status,200,'Giudice '+cat+' non risponde: '+body.slice(0,220));
+              const v=JSON.parse(body);
+              assert.equal(typeof v.approva,'boolean');
+              assert.ok(typeof v.frase==='string' && v.frase.length>4);
+            }
+            console.log('VERIFICATI 6 GIUDICI SU 6');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
