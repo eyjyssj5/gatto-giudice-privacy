@@ -1,0 +1,26 @@
+name: Verifica pagina privacy online
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verifica-privacy-online.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Controlla HTTPS e testo pagina su GitHub Pages
+        run: |
+          set -euo pipefail
+          curl --location --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 \
+            "https://eyjyssj5.github.io/gatto-giudice-privacy/" -o /tmp/privacy-gh.html
+          grep -qi "Informativa sulla privacy di Gatto Giudice" /tmp/privacy-gh.html
+          echo "GitHub Pages privacy OK"
+      - name: Controlla HTTPS e testo pagina nell'app Cloudflare
+        run: |
+          set -euo pipefail
+          curl --location --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 \
+            "https://gatto-giudice-ai.eyjyssj.workers.dev/privacy" -o /tmp/privacy-worker.html
+          grep -qi "Informativa sulla privacy di Gatto Giudice" /tmp/privacy-worker.html
+          echo "Cloudflare /privacy OK"
